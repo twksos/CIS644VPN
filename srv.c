@@ -32,7 +32,7 @@
 #define CHK_SSL(err) if ((err)==-1) { ERR_print_errors_fp(stderr); exit(2); }
 #endif
 
-int key_exchange_server(char * key, int port)
+int key_exchange_server(char * cmd, int cmd_len, int port)
 {
   int err;
   int listen_sd;
@@ -143,11 +143,11 @@ int key_exchange_server(char * key, int port)
     /* We could do all sorts of certificate verification stuff here before
        deallocating the certificate. */
 
-    err = SSL_write (ssl, key, strlen(key));  CHK_SSL(err);
+    err = SSL_write (ssl, cmd, cmd_len);  CHK_SSL(err);
     err = SSL_read (ssl, buf, sizeof(buf) - 1);                   CHK_SSL(err);
     buf[err] = '\0';
-    printf ("Got %d chars:'%s'\n", err, buf);
-    if(memcmp(key, buf, err) == 0){
+    // printf ("Got %d chars:'%s'\n", err, buf);
+    if(memcmp(cmd, buf, err) == 0){
       printf ("Key exchange success\n");
     } else {
       printf ("Key exchange fail\n");
@@ -160,11 +160,11 @@ int key_exchange_server(char * key, int port)
 
   /* DATA EXCHANGE - Receive message and send reply. */
 
-  err = SSL_read (ssl, buf, sizeof(buf) - 1);                   CHK_SSL(err);
-  buf[err] = '\0';
-  printf ("Got %d chars:'%s'\n", err, buf);
+  // err = SSL_read (ssl, buf, sizeof(buf) - 1);                   CHK_SSL(err);
+  // buf[err] = '\0';
+  // printf ("Got %d chars:'%s'\n", err, buf);
   
-  err = SSL_write (ssl, "I hear you.", strlen("I hear you."));  CHK_SSL(err);
+  // err = SSL_write (ssl, "I hear you.", strlen("I hear you."));  CHK_SSL(err);
 
   /* Clean up. */
 

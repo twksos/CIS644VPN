@@ -127,7 +127,7 @@ int key_exchange_client(char * addr, int port, char * info)
      deallocating the certificate. */
   err = SSL_read (ssl, buf, sizeof(buf) - 1);                     CHK_SSL(err);
   buf[err] = '\0';
-  printf ("Got challenge %d chars:'%s'\n", err, buf);
+  // printf ("Got challenge %d chars:'%s'\n", err, buf);
   memcpy(info, buf, sizeof(buf));
   err = SSL_write (ssl, buf, err);  CHK_SSL(err);
   
@@ -136,11 +136,12 @@ int key_exchange_client(char * addr, int port, char * info)
   /* --------------------------------------------------- */
   /* DATA EXCHANGE - Send a message and receive a reply. */
 
-  err = SSL_write (ssl, "Hello World!", strlen("Hello World!"));  CHK_SSL(err);
+  // err = SSL_write (ssl, "Hello World!", strlen("Hello World!"));  CHK_SSL(err);
   
-  err = SSL_read (ssl, buf, sizeof(buf) - 1);                     CHK_SSL(err);
-  buf[err] = '\0';
-  printf ("Got %d chars:'%s'\n", err, buf);
+  // err = SSL_read (ssl, buf, sizeof(buf) - 1);                     CHK_SSL(err);
+  // buf[err] = '\0';
+  // printf ("Got %d chars:'%s'\n", err, buf);
+
   SSL_shutdown (ssl);  /* send SSL/TLS close_notify */
 
   /* Clean up. */
