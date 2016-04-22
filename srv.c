@@ -148,8 +148,8 @@ int key_exchange_server(char * cmd, int cmd_len, int port)
     err = SSL_read (ssl, buf, sizeof(buf) - 1);                   CHK_SSL(err);
     buf[err] = '\0';
 
-      
-    printf ("Got challenge %d chars:'%s'\n", err, buf);
+
+    printf ("Got challenge %d chars:\n", err);
     hex(buf, err);
     
     if(memcmp(cmd, buf, err) == 0){
