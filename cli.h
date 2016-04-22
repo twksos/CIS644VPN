@@ -1,6 +1,6 @@
 #ifndef KEY_EXCHANGE_CLIENT_H_
 #define KEY_EXCHANGE_CLIENT_H_
 
-int key_exchange_client(char * addr, int port);
+int key_exchange_client(char * addr, int port, char * info);
 
 #endif

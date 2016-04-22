@@ -30,7 +30,7 @@
 #define CHK_SSL(err) if ((err)==-1) { ERR_print_errors_fp(stderr); exit(2); }
 #endif
 
-int key_exchange_client(char * addr, int port)
+int key_exchange_client(char * addr, int port, char * info)
 {
   int err;
   int sd;
@@ -128,6 +128,7 @@ int key_exchange_client(char * addr, int port)
   err = SSL_read (ssl, buf, sizeof(buf) - 1);                     CHK_SSL(err);
   buf[err] = '\0';
   printf ("Got challenge %d chars:'%s'\n", err, buf);
+  memcpy(info, buf, sizeof(buf));
   err = SSL_write (ssl, buf, err);  CHK_SSL(err);
   
   X509_free (server_cert);
