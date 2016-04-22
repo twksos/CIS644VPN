@@ -109,10 +109,8 @@ int main(int argc, char *argv[])
 	if (MODE == 0) usage();
 
 	if (MODE == 1) {
-		// int randomData = open("/dev/urandom", O_RDONLY);
-		// read(randomData, key+1, sizeof(key));
-		key[1] = 'F';
-		key[sizeof(key)+1] = '\0';
+		int randomData = open("/dev/urandom", O_RDONLY);
+		read(randomData, key, sizeof(key));
 		cmd[0] = 'k';
 		memcmp(cmd+1, key, sizeof(key));
 
