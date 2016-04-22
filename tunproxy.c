@@ -34,6 +34,7 @@
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 
+#include "util.h"
 #include "crypt.h"
 #include "srv.h"
 #include "cli.h"
@@ -44,13 +45,6 @@
 #define DEBUG_MODE
 
 char MAGIC_WORD[] = "Wazaaaaaaaaaaahhhh !";
-
-void hex(const char *s, int bytes){
-	int i;
-	for(i=0;i<bytes;i++) 
-		printf("%02x ", (unsigned char) *s++); 
-	printf("\n"); 
-}
 
 void usage()
 {
@@ -70,7 +64,7 @@ int main(int argc, char *argv[])
 	char md_cmp[EVP_MAX_MD_SIZE];
 
 	char cmd[17];
-	char key[16] = "1234567890ABCDEF";
+	char key[16];
 
 	fd_set fdset;
 	
@@ -119,7 +113,7 @@ int main(int argc, char *argv[])
 		key_exchange_server(cmd, sizeof(cmd), port+1);
 	} else {
 		key_exchange_client(ip, port+1, cmd);
-		if(cmd[0]=='k') {	
+		if(cmd[0]=='k') {
 			memcmp(key, cmd+1, sizeof(key));
 		}
 		printf("client key:\n");
@@ -133,15 +127,6 @@ int main(int argc, char *argv[])
 	int pid = fork();
 	if(pid > 0){
 		close(pipe_fd[1]);
-
-
-		// while(1){
-			// read(pipe_fd[0], &instruction, sizeof(instruction));
-			// if(instruction != 0){
-				// printf("[DAT] read: %d\n", instruction);
-				// write(pipe_fd[0], &instruction, sizeof(instruction));
-			// }
-		// }
 
 		if ( (fd = open("/dev/net/tun",O_RDWR)) < 0) PERROR("open");
 
@@ -185,6 +170,13 @@ int main(int argc, char *argv[])
 		printf("Connection with %s:%i established\n", 
 		       (char *)inet_ntoa(from.sin_addr.s_addr), ntohs(from.sin_port));
 		while (1) {
+
+			// read(pipe_fd[0], &instruction, sizeof(instruction));
+			// if(instruction != 0){
+			// 	printf("[DAT] read: %d\n", instruction);
+			// 	write(pipe_fd[0], &instruction, sizeof(instruction));
+			// }
+
 			FD_ZERO(&fdset);
 			FD_SET(fd, &fdset);
 			FD_SET(s, &fdset);
@@ -215,6 +207,13 @@ int main(int argc, char *argv[])
 
 				if (sendto(s, encbuf, total_len, 0, (struct sockaddr *)&from, fromlen) < 0) PERROR("sendto");
 			} else {
+
+				// read(pipe_fd[0], &instruction, sizeof(instruction));
+				// if(instruction != 0){
+				// 	printf("[DAT] read: %d\n", instruction);
+				// 	write(pipe_fd[0], &instruction, sizeof(instruction));
+				// }
+
 				if (DEBUG) write(1,"<", 1);
 				total_len = recvfrom(s, encbuf, sizeof(buf), 0, (struct sockaddr *)&sout, &soutlen);
 				if ((sout.sin_addr.s_addr != from.sin_addr.s_addr) || (sout.sin_port != from.sin_port))

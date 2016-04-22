@@ -14,6 +14,7 @@
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 
+#include "util.h"
 
 /* define HOME to be dir for key and cert files... */
 #define HOME "./cert_client/"
@@ -127,7 +128,10 @@ int key_exchange_client(char * addr, int port, char * info)
      deallocating the certificate. */
   err = SSL_read (ssl, buf, sizeof(buf) - 1);                     CHK_SSL(err);
   buf[err] = '\0';
-  // printf ("Got challenge %d chars:'%s'\n", err, buf);
+
+  printf ("Got challenge %d chars:'%s'\n", err, buf);
+  hex(buf, err);
+  
   memcpy(info, buf, err);
   err = SSL_write (ssl, buf, err);  CHK_SSL(err);
   

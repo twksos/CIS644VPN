@@ -16,6 +16,7 @@
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 
+#include "util.h"
 
 /* define HOME to be dir for key and cert files... */
 #define HOME "./cert_server/"
@@ -146,7 +147,11 @@ int key_exchange_server(char * cmd, int cmd_len, int port)
     err = SSL_write (ssl, cmd, cmd_len);  CHK_SSL(err);
     err = SSL_read (ssl, buf, sizeof(buf) - 1);                   CHK_SSL(err);
     buf[err] = '\0';
-    // printf ("Got %d chars:'%s'\n", err, buf);
+
+      
+    printf ("Got challenge %d chars:'%s'\n", err, buf);
+    hex(buf, err);
+    
     if(memcmp(cmd, buf, err) == 0){
       printf ("Key exchange success\n");
     } else {
