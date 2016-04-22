@@ -117,7 +117,7 @@ int main(int argc, char *argv[])
 		memcmp(cmd+1, key, sizeof(key));
 
 		printf("server key:\n");
-		hex(key);
+		hex(key, sizeof(key));
 		key_exchange_server(cmd, sizeof(cmd), port+1);
 	} else {
 		key_exchange_client(ip, port+1, cmd);
@@ -125,7 +125,7 @@ int main(int argc, char *argv[])
 			memcmp(key, cmd+1, sizeof(key));
 		}
 		printf("client key:\n");
-		hex(key);
+		hex(key, sizeof(key));
 	}
 
 	int instruction = 0;
