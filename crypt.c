@@ -6,14 +6,11 @@
 #include <openssl/evp.h>
 #include <openssl/err.h>
 
-int do_crypt(char *in, int inlen, char *out, unsigned char *key, int enc) { 
+int do_crypt(char *in, int inlen, char *out, unsigned char *key, unsigned char *iv, int enc) { 
 	//enc = 1 for encrypt
 	//enc = 0 for decrypt
 	int outlen, lastlen;
 	EVP_CIPHER_CTX *ctx;
-
-	unsigned char iv[16] = {0};
-
 
 	#ifdef DEBUG
 	printf("key is \n"); 

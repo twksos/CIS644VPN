@@ -65,6 +65,7 @@ int main(int argc, char *argv[])
 
 	char cmd[17];
 	char key[16];
+	char iv[16];
 
 	fd_set fdset;
 	
@@ -107,18 +108,32 @@ int main(int argc, char *argv[])
 		read(randomData, key, sizeof(key));
 		cmd[0] = 'k';
 		memcpy(cmd+1, key, sizeof(key));
-		printf("server key:\n");
-		hex(key, sizeof(key));
-		printf("server cmd:\n");
+		printf("server send cmd:\n");
 		hex(cmd, sizeof(cmd));
 		key_exchange_server(cmd, sizeof(cmd), port+1);
+
+		read(randomData, iv, sizeof(iv));
+		cmd[0] = 'i';
+		memcpy(cmd+1, key, sizeof(key));
+		printf("server send cmd:\n");
+		hex(cmd, sizeof(cmd));
+		key_exchange_server(cmd, sizeof(cmd), port+1);
+
 	} else {
 		key_exchange_client(ip, port+1, cmd);
+		printf("client get cmd:\n");
+		hex(key, sizeof(key));
+
 		if(cmd[0]=='k') {
 			memcpy(key, cmd+1, sizeof(key));
 		}
-		printf("client key:\n");
+
+		key_exchange_client(ip, port+1, cmd);
+		printf("client get cmd:\n");
 		hex(key, sizeof(key));
+		if(cmd[0]=='i') {
+			memcpy(iv, cmd+1, sizeof(iv));
+		}
 	}
 
 	int instruction = 0;
@@ -188,7 +203,7 @@ int main(int argc, char *argv[])
 				if (l < 0) PERROR("read");
 
 				// encrypt before send
-				enclen = do_crypt(buf, l, encbuf, key, 1);
+				enclen = do_crypt(buf, l, encbuf, key, iv, 1);
 				#ifdef DEBUG_MODE
 				printf("enc %d to %d bytes\n", l, enclen);
 				hex(encbuf, enclen);
@@ -242,7 +257,7 @@ int main(int argc, char *argv[])
 					#ifdef DEBUG_MODE
 					hex(encbuf, enclen);
 					#endif
-					l = do_crypt(encbuf, enclen, buf, key, 0);
+					l = do_crypt(encbuf, enclen, buf, key, iv, 0);
 					#ifdef DEBUG_MODE
 					printf("dec %d to %d bytes\n", enclen, l);
 					#endif
