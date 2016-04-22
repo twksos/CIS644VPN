@@ -35,7 +35,7 @@
 #define PERROR(x) do { perror(x); exit(1); } while (0)
 #define ERROR(x, args ...) do { fprintf(stderr,"ERROR:" x, ## args); exit(1); } while (0)
 
-// #define DEBUG_MODE
+#define DEBUG_MODE
 
 char MAGIC_WORD[] = "Wazaaaaaaaaaaahhhh !";
 
@@ -93,11 +93,12 @@ int main(int argc, char *argv[])
 {
 	struct sockaddr_in sin, sout, from;
 	struct ifreq ifr;
-	int fd, s, fromlen, soutlen, port, PORT, l, enclen;
+	int fd, s, fromlen, soutlen, port, PORT, l, enclen, maci, md_len, total_len;
+	int mac_valid;
 	char c, *p, *ip;
 	char buf[2000];
-	char * encprep;
-	char encbuf[2000 + EVP_MAX_BLOCK_LENGTH];
+	char encbuf[2000 + EVP_MAX_BLOCK_LENGTH + EVP_MAX_MD_SIZE];
+	char md_cmp[EVP_MAX_MD_SIZE];
 
 	char key[16] = "1234567890ABCDEF";
 
@@ -193,26 +194,57 @@ int main(int argc, char *argv[])
 			printf("enc %d to %d bytes\n", l, enclen);
 			hex(encbuf, enclen);
 			#endif
-			
-			if (sendto(s, encbuf, enclen, 0, (struct sockaddr *)&from, fromlen) < 0) PERROR("sendto");
+
+			//HMAC generation
+			for (maci = 0; maci < EVP_MAX_MD_SIZE; maci ++) {
+				encbuf[enclen + maci] = '\0';
+			}
+			HMAC(EVP_sha256(), "key", 3, encbuf, enclen, encbuf + enclen, &md_len);
+			total_len = enclen + EVP_MAX_MD_SIZE;
+
+			#ifdef DEBUG_MAC_MODE
+			printf("enclen:%d  total_len:%d\n", enclen, total_len);
+			hex(encbuf + enclen, EVP_MAX_MD_SIZE);
+			#endif
+
+			if (sendto(s, encbuf, total_len, 0, (struct sockaddr *)&from, fromlen) < 0) PERROR("sendto");
 		} else {
 			if (DEBUG) write(1,"<", 1);
-			enclen = recvfrom(s, encbuf, sizeof(buf), 0, (struct sockaddr *)&sout, &soutlen);
+			total_len = recvfrom(s, encbuf, sizeof(buf), 0, (struct sockaddr *)&sout, &soutlen);
 			if ((sout.sin_addr.s_addr != from.sin_addr.s_addr) || (sout.sin_port != from.sin_port))
 				printf("Got packet from  %s:%i instead of %s:%i\n", 
 				       inet_ntoa(sout.sin_addr.s_addr), ntohs(sout.sin_port),
 				       inet_ntoa(from.sin_addr.s_addr), ntohs(from.sin_port));
 
-			// decrypt before write to net
-			#ifdef DEBUG_MODE
-			hex(encbuf, enclen);
-			#endif
-			l = do_crypt(encbuf, enclen, buf, key, 0);
-			#ifdef DEBUG_MODE
-			printf("dec %d to %d bytes\n", enclen, l);
-			#endif
+			//HMAC validation
+			enclen = total_len - EVP_MAX_MD_SIZE;
 
-			if (write(fd, buf, l) < 0) PERROR("write");
+			for (maci = 0; maci < EVP_MAX_MD_SIZE; maci ++) {
+				md_cmp[maci] = '\0';
+			}
+			HMAC(EVP_sha256(), "key", 3, encbuf, enclen, md_cmp, &md_len);
+
+			#ifdef DEBUG_MAC_MODE
+			printf("enclen:%d  total_len:%d\n", enclen, total_len);
+			hex(md_cmp, EVP_MAX_MD_SIZE);
+			#endif
+			mac_valid = memcmp(encbuf + enclen, md_cmp, EVP_MAX_MD_SIZE);
+
+			if(mac_valid == 0){
+				printf("hmac valid\n");
+				// decrypt before write to net
+				#ifdef DEBUG_MODE
+				hex(encbuf, enclen);
+				#endif
+				l = do_crypt(encbuf, enclen, buf, key, 0);
+				#ifdef DEBUG_MODE
+				printf("dec %d to %d bytes\n", enclen, l);
+				#endif
+
+				if (write(fd, buf, l) < 0) PERROR("write");
+			} else {
+				printf("invalid hmac\n");
+			}
 		}
 	}
 }
