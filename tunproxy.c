@@ -106,15 +106,16 @@ int main(int argc, char *argv[])
 		int randomData = open("/dev/urandom", O_RDONLY);
 		read(randomData, key, sizeof(key));
 		cmd[0] = 'k';
-		memcmp(cmd+1, key, sizeof(key));
-
+		memcpy(cmd+1, key, sizeof(key));
 		printf("server key:\n");
 		hex(key, sizeof(key));
+		printf("server cmd:\n");
+		hex(cmd, sizeof(cmd));
 		key_exchange_server(cmd, sizeof(cmd), port+1);
 	} else {
 		key_exchange_client(ip, port+1, cmd);
 		if(cmd[0]=='k') {
-			memcmp(key, cmd+1, sizeof(key));
+			memcpy(key, cmd+1, sizeof(key));
 		}
 		printf("client key:\n");
 		hex(key, sizeof(key));
