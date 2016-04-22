@@ -129,10 +129,11 @@ int key_exchange_client(char * addr, int port, char * info)
   err = SSL_read (ssl, buf, sizeof(buf) - 1);                     CHK_SSL(err);
   buf[err] = '\0';
 
-  printf ("Got challenge %d chars:'%s'\n", err, buf);
+  printf ("Got challenge %d chars:\n", err);
   hex(buf, err);
-  
+
   memcpy(info, buf, err);
+  
   err = SSL_write (ssl, buf, err);  CHK_SSL(err);
   
   X509_free (server_cert);
