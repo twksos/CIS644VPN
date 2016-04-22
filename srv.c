@@ -33,16 +33,14 @@
 #define CHK_SSL(err) if ((err)==-1) { ERR_print_errors_fp(stderr); exit(2); }
 #endif
 
-int key_exchange_server(char * cmd, int cmd_len, int port)
+int init_server(char * cmd, int cmd_len, int port,
+                int sd, SSL_CTX* ctx, SSL* ssl)
 {
   int err;
   int listen_sd;
-  int sd;
   struct sockaddr_in sa_serv;
   struct sockaddr_in sa_cli;
   size_t client_len;
-  SSL_CTX* ctx;
-  SSL*     ssl;
   X509*    client_cert;
   char*    str;
   char     buf [4096];
@@ -88,10 +86,10 @@ int key_exchange_server(char * cmd, int cmd_len, int port)
   sa_serv.sin_port        = htons (port);          /* Server Port number */
   
   err = bind(listen_sd, (struct sockaddr*) &sa_serv,
-	     sizeof (sa_serv));                   CHK_ERR(err, "bind");
-	     
+       sizeof (sa_serv));                   CHK_ERR(err, "bind");
+       
   /* Receive a TCP connection. */
-	     
+       
   err = listen (listen_sd, 5);                    CHK_ERR(err, "listen");
   
   client_len = sizeof(sa_cli);
@@ -100,7 +98,7 @@ int key_exchange_server(char * cmd, int cmd_len, int port)
   close (listen_sd);
 
   printf ("Connection from %lx, port %x\n",
-	  sa_cli.sin_addr.s_addr, sa_cli.sin_port);
+    sa_cli.sin_addr.s_addr, sa_cli.sin_port);
   
   /* ----------------------------------------------- */
   /* TCP connection is ready. Do server side SSL. */
@@ -162,21 +160,21 @@ int key_exchange_server(char * cmd, int cmd_len, int port)
     X509_free (client_cert);
   } else
     printf ("Client does not have certificate.\n");
+}
 
-  /* DATA EXCHANGE - Receive message and send reply. */
-
-  // err = SSL_read (ssl, buf, sizeof(buf) - 1);                   CHK_SSL(err);
-  // buf[err] = '\0';
-  // printf ("Got %d chars:'%s'\n", err, buf);
-  
-  // err = SSL_write (ssl, "I hear you.", strlen("I hear you."));  CHK_SSL(err);
-
-  /* Clean up. */
-
+int close_server(int sd, SSL_CTX* ctx, SSL* ssl){
   close (sd);
   SSL_free (ssl);
   SSL_CTX_free (ctx);
+}
 
+int send_from_server(char * cmd, int cmd_len, SSL* ssl)
+{
+  int err;
+  char     buf [4096];
+
+  /* DATA EXCHANGE - Receive message and send reply. */
+  err = SSL_write (ssl, cmd, cmd_len);  CHK_SSL(err);
   return 0;
 }
 

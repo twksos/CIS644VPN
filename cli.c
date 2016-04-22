@@ -31,13 +31,11 @@
 #define CHK_SSL(err) if ((err)==-1) { ERR_print_errors_fp(stderr); exit(2); }
 #endif
 
-int key_exchange_client(char * addr, int port, char * info)
+int init_client(char * addr, int port, char * info,
+                        int sd, SSL_CTX* ctx, SSL* ssl)
 {
   int err;
-  int sd;
   struct sockaddr_in sa;
-  SSL_CTX* ctx;
-  SSL*     ssl;
   X509*    server_cert;
   char*    str;
   char     buf [4096];
@@ -147,6 +145,10 @@ int key_exchange_client(char * addr, int port, char * info)
   // buf[err] = '\0';
   // printf ("Got %d chars:'%s'\n", err, buf);
 
+  return 0;
+}
+
+int close_client(int sd, SSL_CTX* ctx, SSL* ssl){
   SSL_shutdown (ssl);  /* send SSL/TLS close_notify */
 
   /* Clean up. */
@@ -156,6 +158,16 @@ int key_exchange_client(char * addr, int port, char * info)
   SSL_CTX_free (ctx);
 
   return 0;
+}
+
+int listen_server(char * cmd, SSL* ssl){
+	int err;
+	char buf[4096];
+	err = SSL_read (ssl, buf, sizeof(buf));                     CHK_SSL(err);
+	memcpy(cmd, buf, err);
+
+	printf("client get cmd:\n");
+	hex(cmd, err);
 }
 
 #ifdef DEBUG_PKI

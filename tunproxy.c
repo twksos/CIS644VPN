@@ -63,6 +63,10 @@ int main(int argc, char *argv[])
 	char encbuf[2000 + EVP_MAX_BLOCK_LENGTH + EVP_MAX_MD_SIZE];
 	char md_cmp[EVP_MAX_MD_SIZE];
 
+    SSL_CTX* ssl_ctx;
+    SSL*     ssl;
+	int      ssl_sd;
+
 	char cmd[17];
 	char key[16];
 	char iv[16];
@@ -110,30 +114,34 @@ int main(int argc, char *argv[])
 		memcpy(cmd+1, key, sizeof(key));
 		printf("server send cmd:\n");
 		hex(cmd, sizeof(cmd));
-		key_exchange_server(cmd, sizeof(cmd), port+1);
+
+		init_server(cmd, sizeof(cmd), port+1, ssl_sd, ssl_ctx, ssl);
+		send_from_server(cmd, sizeof(cmd), ssl);
 
 		read(randomData, iv, sizeof(iv));
 		cmd[0] = 'i';
 		memcpy(cmd+1, key, sizeof(key));
 		printf("server send cmd:\n");
 		hex(cmd, sizeof(cmd));
-		key_exchange_server(cmd, sizeof(cmd), port+1);
+		send_from_server(cmd, sizeof(cmd), ssl);
 
+		close_server(ssl_sd, ssl_ctx, ssl);
 	} else {
-		key_exchange_client(ip, port+1, cmd);
-		printf("client get cmd:\n");
-		hex(key, sizeof(key));
+		init_client(ip, port+1, cmd, ssl_sd, ssl_ctx, ssl);
+		
+		listen_server(cmd, ssl);
 
 		if(cmd[0]=='k') {
 			memcpy(key, cmd+1, sizeof(key));
 		}
 
-		key_exchange_client(ip, port+1, cmd);
-		printf("client get cmd:\n");
-		hex(key, sizeof(key));
+		listen_server(cmd, ssl);
+		
 		if(cmd[0]=='i') {
 			memcpy(iv, cmd+1, sizeof(iv));
 		}
+
+		close_client(ssl_sd, ssl_ctx, ssl);
 	}
 
 	int instruction = 0;
