@@ -75,6 +75,7 @@ int key_exchange_server(char * key, int port)
     exit(5);
   }
 
+  printf("listen to port: %d\n", port);
   /* ----------------------------------------------- */
   /* Prepare TCP socket for receiving connections */
 
@@ -120,11 +121,23 @@ int key_exchange_server(char * key, int port)
     str = X509_NAME_oneline (X509_get_subject_name (client_cert), 0, 0);
     CHK_NULL(str);
     printf ("\t subject: %s\n", str);
+    if(strcmp(str, "/C=US/ST=New-York/O=GuangchengWei/CN=VPNCLIENT") == 0){
+      printf("subject correct\n");
+    } else {
+      printf("subject incorrect\n");
+      return -1;
+    }
     OPENSSL_free (str);
     
     str = X509_NAME_oneline (X509_get_issuer_name  (client_cert), 0, 0);
     CHK_NULL(str);
     printf ("\t issuer: %s\n", str);
+    if(strcmp(str, "/C=US/ST=New-York/O=GuangchengWei/CN=VPNCA") == 0){
+      printf("issuer correct\n");
+    } else {
+      printf("subject incorrect\n");
+      return -1;
+    }
     OPENSSL_free (str);
     
     /* We could do all sorts of certificate verification stuff here before
