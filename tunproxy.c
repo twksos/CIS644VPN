@@ -114,7 +114,7 @@ int main(int argc, char *argv[])
 
 		cmd[0] = 'k';
 		memcpy(cmd+1, key, sizeof(key));
-		init_server(cmd, sizeof(cmd), port+2, &ssl_sd, &ssl_ctx, &ssl);
+		init_server(port+2, &ssl_sd, &ssl_ctx, &ssl);
 
         cmd[0] = 'k';
         memcpy(cmd+1, key, sizeof(key));

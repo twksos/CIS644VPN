@@ -74,8 +74,7 @@ SSL_CTX *get_server_CTX() {
     return ctx;
 }
 
-int init_server(char *cmd, int cmd_len, int port,
-                int* out_sd, SSL_CTX ** out_ctx, SSL **out_ssl) {
+int init_server(int port, int *out_sd, SSL_CTX ** out_ctx, SSL **out_ssl) {
     int err;
     int listen_sd;
     struct sockaddr_in sa_serv;
