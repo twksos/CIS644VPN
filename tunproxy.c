@@ -63,10 +63,6 @@ int main(int argc, char *argv[])
 	char encbuf[2000 + EVP_MAX_BLOCK_LENGTH + EVP_MAX_MD_SIZE];
 	char md_cmp[EVP_MAX_MD_SIZE];
 
-    SSL_CTX* ssl_ctx;
-    SSL*     ssl;
-	int      ssl_sd;
-
 	char cmd[17];
 	char key[16];
 	char iv[16];
@@ -107,28 +103,30 @@ int main(int argc, char *argv[])
 	}
 	if (MODE == 0) usage();
 
+    SSL_CTX* ssl_ctx;
+    SSL*     ssl;
+    int ssl_sd;
+
 	if (MODE == 1) {
 		int randomData = open("/dev/urandom", O_RDONLY);
 		read(randomData, key, sizeof(key));
+        read(randomData, iv, sizeof(iv));
+
 		cmd[0] = 'k';
 		memcpy(cmd+1, key, sizeof(key));
-		printf("server send cmd:\n");
-		hex(cmd, sizeof(cmd));
+		init_server(cmd, sizeof(cmd), port+2, &ssl_sd, &ssl_ctx, &ssl);
 
-		init_server(cmd, sizeof(cmd), port+1, ssl_sd, ssl_ctx, ssl);
-		send_from_server(cmd, sizeof(cmd), ssl);
+        cmd[0] = 'k';
+        memcpy(cmd+1, key, sizeof(key));
+        send_from_server(cmd, sizeof(cmd), ssl);
 
-		read(randomData, iv, sizeof(iv));
 		cmd[0] = 'i';
 		memcpy(cmd+1, key, sizeof(key));
-		printf("server send cmd:\n");
-		hex(cmd, sizeof(cmd));
 		send_from_server(cmd, sizeof(cmd), ssl);
 
 		close_server(ssl_sd, ssl_ctx, ssl);
 	} else {
-		init_client(ip, port+1, cmd, ssl_sd, ssl_ctx, ssl);
-		
+		init_client(ip, port+2, &ssl_sd, &ssl_ctx, &ssl);
 		listen_server(cmd, ssl);
 
 		if(cmd[0]=='k') {
@@ -136,7 +134,6 @@ int main(int argc, char *argv[])
 		}
 
 		listen_server(cmd, ssl);
-		
 		if(cmd[0]=='i') {
 			memcpy(iv, cmd+1, sizeof(iv));
 		}
