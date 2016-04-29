@@ -203,7 +203,7 @@ int init_server(int port, int *out_sd, SSL_CTX ** out_ctx, SSL **out_ssl) {
         printf("\t subject: %s\n", str);
 #endif
 
-        if (strcmp(str, "/C=US/ST=New-York/O=GuangchengWei/CN=VPNCLIENT") != 0) {
+        if (same_domain(str, "VPNCLIENT")) {
             printf("Client certificate is incorrect.\n");
             return -1;
         }
@@ -216,7 +216,7 @@ int init_server(int port, int *out_sd, SSL_CTX ** out_ctx, SSL **out_ssl) {
         printf("\t issuer: %s\n", str);
 #endif
 
-        if (strcmp(str, "/C=US/ST=New-York/L=Syracuse/O=GuangchengWei/CN=VPNCA") != 0) {
+        if (same_domain(str, "VPNCA")) {
             printf("Client certificate is incorrect.\n");
             return -1;
         }
