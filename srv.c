@@ -43,7 +43,7 @@ int challenge(SSL* ssl){
     int challenge_len = sizeof(challenge);
     read(randomData, challenge, challenge_len);
 
-#ifndef PROD
+#ifdef DEBUG
     printf("Send challenge %d chars:\n", challenge_len);
     hex(challenge, challenge_len);
 #endif
@@ -69,7 +69,7 @@ char * listen_client(SSL *ssl) {
     memcpy(message, buf, err);
     message[err] = '\0';
 
-#ifndef PROD
+#ifdef DEBUG
     printf("server get message:\n");
     hex(message, err);
 #endif
@@ -79,8 +79,10 @@ char * listen_client(SSL *ssl) {
 int server_send(char *cmd, int cmd_len, SSL *ssl) {
     int err;
 
+#ifdef DEBUG
     printf("server send cmd:\n");
     hex(cmd, cmd_len);
+#endif
 
     /* DATA EXCHANGE - Receive message and send reply. */
     err = SSL_write(ssl, cmd, cmd_len);
@@ -165,8 +167,10 @@ int init_server(int port, int *out_sd, SSL_CTX ** out_ctx, SSL **out_ssl) {
     CHK_ERR(sd, "accept");
     close(listen_sd);
 
+#ifdef DEBUG
     printf("Connection from %lx, port %x\n",
            sa_cli.sin_addr.s_addr, sa_cli.sin_port);
+#endif
 
     /* ----------------------------------------------- */
     /* TCP connection is ready. Do server side SSL. */
@@ -177,18 +181,31 @@ int init_server(int port, int *out_sd, SSL_CTX ** out_ctx, SSL **out_ssl) {
     err = SSL_accept(ssl);
     CHK_SSL(err);
 
-    /* Get the cipher - opt */
+    *out_sd = sd;
+    *out_ctx = ctx;
+    *out_ssl = ssl;
 
+    /* Get the cipher - opt */
+#ifdef DEBUG
     printf("SSL connection using %s\n", SSL_get_cipher(ssl));
+#endif
 
     /* Get client's certificate (note: beware of dynamic allocation) - opt */
 
     client_cert = SSL_get_peer_certificate(ssl);
     if (client_cert != NULL) {
+
+#ifdef DEBUG
         printf("Client certificate:\n");
+#endif
+
         str = X509_NAME_oneline(X509_get_subject_name(client_cert), 0, 0);
         CHK_NULL(str);
+
+#ifdef DEBUG
         printf("\t subject: %s\n", str);
+#endif
+
         if (strcmp(str, "/C=US/ST=New-York/O=GuangchengWei/CN=VPNCLIENT") != 0) {
             printf("Client certificate is incorrect.\n");
             return -1;
@@ -197,7 +214,11 @@ int init_server(int port, int *out_sd, SSL_CTX ** out_ctx, SSL **out_ssl) {
 
         str = X509_NAME_oneline(X509_get_issuer_name(client_cert), 0, 0);
         CHK_NULL(str);
+
+#ifdef DEBUG
         printf("\t issuer: %s\n", str);
+#endif
+
         if (strcmp(str, "/C=US/ST=New-York/L=Syracuse/O=GuangchengWei/CN=VPNCA") != 0) {
             printf("Client certificate is incorrect.\n");
             return -1;
@@ -213,23 +234,24 @@ int init_server(int port, int *out_sd, SSL_CTX ** out_ctx, SSL **out_ssl) {
             return -1;
         }
 
+        X509_free(client_cert);
+
+
         char * username;
         char * password;
         username = listen_client(ssl);
         password = listen_client(ssl);
 
+#ifdef DEBUG
         printf("username: %s\npassword %s\n", username, password);
+#endif
+
         verfied = verify_password(username, password);
         if(verfied != 0) {
             printf("Client username and password does not match.\n");
             return -1;
         }
 
-        X509_free(client_cert);
-
-        *out_sd = sd;
-        *out_ctx = ctx;
-        *out_ssl = ssl;
         return 0;
     } else {
         printf("Client does not have certificate.\n");
