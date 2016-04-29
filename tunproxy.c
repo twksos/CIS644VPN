@@ -52,6 +52,18 @@ void usage()
 	exit(0);
 }
 
+struct communicate {
+    int instruction;
+    char key [16];
+    char iv [16];
+    long serial;
+};
+
+void print_commands();
+void new_key_iv(struct communicate *state);
+char* getuser();
+void sync_tcp_udp(int in,int out, struct communicate* state, size_t state_size);
+
 int main(int argc, char *argv[])
 {
 	struct sockaddr_in sin, sout, from;
@@ -63,7 +75,7 @@ int main(int argc, char *argv[])
 	char encbuf[2000 + EVP_MAX_BLOCK_LENGTH + EVP_MAX_MD_SIZE];
 	char md_cmp[EVP_MAX_MD_SIZE];
 
-	char cmd[17];
+	char * cmd;
 	char key[16];
 	char iv[16];
 
@@ -71,18 +83,14 @@ int main(int argc, char *argv[])
 	
 	
 
-	int MODE = 0, TUNMODE = IFF_TUN, DEBUG = 0;
+	int MODE = 0, TUNMODE = IFF_TUN;
 
 	while ((c = getopt(argc, argv, "s:c:ehd")) != -1) {
 		switch (c) {
 		case 'h':
 			usage();
-		case 'd':
-			DEBUG++;
-			break;
 		case 's':
 			MODE = 1;
-			port = atoi(optarg);
 			PORT = atoi(optarg);
 			break;
 		case 'c':
@@ -107,48 +115,26 @@ int main(int argc, char *argv[])
     SSL*     ssl;
     int ssl_sd;
 
-	if (MODE == 1) {
-		int randomData = open("/dev/urandom", O_RDONLY);
-		read(randomData, key, sizeof(key));
-        read(randomData, iv, sizeof(iv));
+    int tcp_port = 33332;
 
-		cmd[0] = 'k';
-		memcpy(cmd+1, key, sizeof(key));
-		init_server(port+2, &ssl_sd, &ssl_ctx, &ssl);
+    size_t state_size = sizeof(struct communicate);
+    struct communicate *state = malloc(state_size);
+	memset(state, 0, state_size);
 
-        cmd[0] = 'k';
-        memcpy(cmd+1, key, sizeof(key));
-        send_from_server(cmd, sizeof(cmd), ssl);
+    int pipe_ctd[2];
+    int pipe_dtc[2];
+    pipe2(pipe_ctd,O_NONBLOCK);
+    pipe2(pipe_dtc,O_NONBLOCK);
 
-		cmd[0] = 'i';
-		memcpy(cmd+1, key, sizeof(key));
-		send_from_server(cmd, sizeof(cmd), ssl);
+    write(pipe_ctd[1], state, state_size);
+    write(pipe_dtc[1], state, state_size);
 
-		close_server(ssl_sd, ssl_ctx, ssl);
-	} else {
-		init_client(ip, port+2, &ssl_sd, &ssl_ctx, &ssl);
-		listen_server(cmd, ssl);
-
-		if(cmd[0]=='k') {
-			memcpy(key, cmd+1, sizeof(key));
-		}
-
-		listen_server(cmd, ssl);
-		if(cmd[0]=='i') {
-			memcpy(iv, cmd+1, sizeof(iv));
-		}
-
-		close_client(ssl_sd, ssl_ctx, ssl);
-	}
-
-	int instruction = 0;
-	int ins_state;
-	int pipe_fd[2];
-	pipe2(pipe_fd,O_NONBLOCK);
 	int pid = fork();
 	if(pid > 0){
-		close(pipe_fd[1]);
+		close(pipe_ctd[1]);
+		close(pipe_dtc[0]);
 
+        while (state->instruction == 0)read(pipe_ctd[0], state, state_size);
 		if ( (fd = open("/dev/net/tun",O_RDWR)) < 0) PERROR("open");
 
 		memset(&ifr, 0, sizeof(ifr));
@@ -172,16 +158,16 @@ int main(int argc, char *argv[])
 				if (l < 0) PERROR("recvfrom");
 				if (strncmp(MAGIC_WORD, buf, sizeof(MAGIC_WORD)) == 0)
 					break;
-				printf("Bad magic word from %s:%i\n", 
+				printf("Bad magic word from %s:%i\n",
 				       (char *)inet_ntoa(from.sin_addr.s_addr), ntohs(from.sin_port));
-			} 
+			}
 			l = sendto(s, MAGIC_WORD, sizeof(MAGIC_WORD), 0, (struct sockaddr *)&from, fromlen);
 			if (l < 0) PERROR("sendto");
 		} else {
 			from.sin_family = AF_INET;
 			from.sin_port = htons(port);
 			inet_aton(ip, &from.sin_addr);
-			l =sendto(s, MAGIC_WORD, sizeof(MAGIC_WORD), 0, (struct sockaddr *)&from, sizeof(from));
+			l = sendto(s, MAGIC_WORD, sizeof(MAGIC_WORD), 0, (struct sockaddr *)&from, sizeof(from));
 			if (l < 0) PERROR("sendto");
 			l = recvfrom(s,buf, sizeof(buf), 0, (struct sockaddr *)&from, &fromlen);
 			if (l < 0) PERROR("recvfrom");
@@ -190,25 +176,28 @@ int main(int argc, char *argv[])
 		}
 		printf("Connection with %s:%i established\n", 
 		       (char *)inet_ntoa(from.sin_addr.s_addr), ntohs(from.sin_port));
-		while (1) {
 
-			// read(pipe_fd[0], &instruction, sizeof(instruction));
-			// if(instruction != 0){
-			// 	printf("[DAT] read: %d\n", instruction);
-			// 	write(pipe_fd[0], &instruction, sizeof(instruction));
-			// }
+        printf("key and iv set\n");
+		while (1) {
+			read(pipe_ctd[0], state, state_size);
+			printf("[DAT] read  ins: %d\n", state->instruction);
+			if(state->instruction != 0){
+				printf("[DAT] start ins: %d\n", state->instruction);
+				state->instruction = 0;
+				printf("[DAT] done  ins: %d\n", state->instruction);
+				write(pipe_dtc[1], state, state_size);
+			}
 
 			FD_ZERO(&fdset);
 			FD_SET(fd, &fdset);
 			FD_SET(s, &fdset);
 			if (select(fd+s+1, &fdset,NULL,NULL,NULL) < 0) PERROR("select");
 			if (FD_ISSET(fd, &fdset)) {
-				if (DEBUG) write(1,">", 1);
 				l = read(fd, buf, sizeof(buf));
 				if (l < 0) PERROR("read");
 
 				// encrypt before send
-				enclen = do_crypt(buf, l, encbuf, key, iv, 1);
+				enclen = do_crypt(buf, l, encbuf, (unsigned char *) state->key, (unsigned char *) state->iv, 1);
 				#ifdef DEBUG_MODE
 				printf("enc %d to %d bytes\n", l, enclen);
 				hex(encbuf, enclen);
@@ -218,7 +207,7 @@ int main(int argc, char *argv[])
 				for (maci = 0; maci < EVP_MAX_MD_SIZE; maci ++) {
 					encbuf[enclen + maci] = '\0';
 				}
-				HMAC(EVP_sha256(), "key", 3, encbuf, enclen, encbuf + enclen, &md_len);
+				HMAC(EVP_sha256(), state->key, sizeof(state->key), encbuf, enclen, encbuf + enclen, &md_len);
 				total_len = enclen + EVP_MAX_MD_SIZE;
 
 				#ifdef DEBUG_MAC_MODE
@@ -228,16 +217,10 @@ int main(int argc, char *argv[])
 
 				if (sendto(s, encbuf, total_len, 0, (struct sockaddr *)&from, fromlen) < 0) PERROR("sendto");
 			} else {
-
-				// read(pipe_fd[0], &instruction, sizeof(instruction));
-				// if(instruction != 0){
-				// 	printf("[DAT] read: %d\n", instruction);
-				// 	write(pipe_fd[0], &instruction, sizeof(instruction));
-				// }
-
-				if (DEBUG) write(1,"<", 1);
 				total_len = recvfrom(s, encbuf, sizeof(buf), 0, (struct sockaddr *)&sout, &soutlen);
 				if ((sout.sin_addr.s_addr != from.sin_addr.s_addr) || (sout.sin_port != from.sin_port))
+
+
 					printf("Got packet from  %s:%i instead of %s:%i\n", 
 					       (char *)inet_ntoa(sout.sin_addr.s_addr), ntohs(sout.sin_port),
 					       (char *)inet_ntoa(from.sin_addr.s_addr), ntohs(from.sin_port));
@@ -248,12 +231,13 @@ int main(int argc, char *argv[])
 				for (maci = 0; maci < EVP_MAX_MD_SIZE; maci ++) {
 					md_cmp[maci] = '\0';
 				}
-				HMAC(EVP_sha256(), "key", 3, encbuf, enclen, md_cmp, &md_len);
+				HMAC(EVP_sha256(), state->key, sizeof(state->key), encbuf, enclen, md_cmp, &md_len);
 
 				#ifdef DEBUG_MAC_MODE
 				printf("enclen:%d  total_len:%d\n", enclen, total_len);
 				hex(md_cmp, EVP_MAX_MD_SIZE);
-				#endif
+                #endif
+
 				mac_valid = memcmp(encbuf + enclen, md_cmp, EVP_MAX_MD_SIZE);
 
 				if(mac_valid == 0){
@@ -262,7 +246,7 @@ int main(int argc, char *argv[])
 					#ifdef DEBUG_MODE
 					hex(encbuf, enclen);
 					#endif
-					l = do_crypt(encbuf, enclen, buf, key, iv, 0);
+					l = do_crypt(encbuf, enclen, buf, (unsigned char *) state->key, (unsigned char *) state->iv, 0);
 					#ifdef DEBUG_MODE
 					printf("dec %d to %d bytes\n", enclen, l);
 					#endif
@@ -274,21 +258,103 @@ int main(int argc, char *argv[])
 			}
 		}
 	} else if (pid == 0) {
-		close(pipe_fd[0]);
-		while(1){
-			printf("[CTR] Command: ");
-			scanf("%d", &instruction);
-			printf("[CTR] typed %d\n", instruction);
-			write(pipe_fd[1], &instruction, sizeof(instruction));
-			do {
-				ins_state = read(pipe_fd[1], &instruction, sizeof(instruction));
-				printf("%d %d\n", ins_state, instruction);
-			} while(ins_state == -1);
-			printf("[CTR] confirm: %d\n", instruction);
+        close(pipe_ctd[0]);
+        close(pipe_dtc[1]);
+        if (MODE == 1) {
+            int server_started = init_server(tcp_port, &ssl_sd, &ssl_ctx, &ssl);
+            if (server_started != 0) {
+                printf("Server not started");
+            }
+            while (1) {
+                //server receive command and write
+                char *ins = listen_client(ssl);
+                memcpy(state, ins, state_size);
+
+                if(state->instruction != 0) {
+#ifdef DEBUG
+                    printf("new key:");
+                    hex(state->key, 16);
+#endif
+                    //pass to udp
+                    sync_tcp_udp(pipe_ctd[1], pipe_dtc[0], state, state_size);
+                }
+            }
+        } else {
+            char *username = getuser();
+            char *password = getpass("Password:\n");
+            init_client(ip, tcp_port, username, password, &ssl_sd, &ssl_ctx, &ssl);
+            new_key_iv(state);
+#ifdef DEBUG
+            printf("new key:");
+            hex(state->key, 16);
+#endif
+            client_send((char *) state, state_size, ssl);
+            sync_tcp_udp(pipe_ctd[1], pipe_dtc[0], state, state_size);
+
+            while (1) {
+                print_commands();
+                scanf("%d", &state->instruction);
+
+#ifdef DEBUG
+                printf("receive %d", state->instruction);
+#endif
+
+                //client compose command and send to server
+                if (state->instruction == 1) {
+                    new_key_iv(state);
+                }
+
+                client_send((char *) state, state_size, ssl);
+
+                //pass to udp
+                sync_tcp_udp(pipe_ctd[1], pipe_dtc[0], state, state_size);
+            }
 		}
 	} else {
 		printf("fork error!!");
 	}
+
+    if (MODE == 1) {
+        close_server(ssl_sd, ssl_ctx, ssl);
+    } else {
+        close_client(ssl_sd, ssl_ctx, ssl);
+    }
 }
-	       
+
+void new_key_iv(struct communicate *state){
+    int randomData = open("/dev/urandom", O_RDONLY);
+    state->instruction = 1;
+    read(randomData, state->key, sizeof(state->key));
+    read(randomData, state->iv, sizeof(state->iv));
+    read(randomData, &state->serial, sizeof(state->serial));
+    state->serial = state->serial >> 2;
+}
+
+char* getuser(){
+    char scan_buf[1024];
+    size_t username_len;
+    char * username;
+    printf("Username:\n");
+    scanf("%s", scan_buf);
+    username_len = strlen(scan_buf);
+    username = malloc(username_len);
+    memcpy(username, scan_buf, username_len);
+    return username;
+}
+
+void sync_tcp_udp(int in,int out, struct communicate* state, size_t state_size) {
+    write(in, state, state_size);
+    if (state->instruction == 2) { exit(0); }
+    while (state->instruction != 0) {
+        read(out, state, state_size);
+    }
+    write(in, state, state_size);
+}
+
+void print_commands() {
+	printf("\nCommands:\n");
+	printf("1: new key and iv\n");
+	printf("2: quit\n");
+}
+
 	
