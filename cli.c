@@ -38,8 +38,10 @@ int reply_challenge(SSL* ssl){
     err = SSL_read(ssl, buf, sizeof(buf) - 1);
     CHK_SSL(err);
 
+#ifdef DEBUG
     printf("Got challenge %d chars:\n", err);
     hex(buf, err);
+#endif
 
     err = SSL_write(ssl, buf, err);
     CHK_SSL(err);
@@ -58,8 +60,11 @@ int listen_server(char *cmd, SSL *ssl) {
     CHK_SSL(err);
     memcpy(cmd, buf, err);
 
+#ifdef DEBUG
     printf("client get cmd:\n");
     hex(cmd, err);
+#endif
+
     return 0;
 }
 
@@ -139,17 +144,26 @@ int init_client(char *addr, int port, char * username, char * password,
 
     /* Get the cipher - opt */
 
+#ifdef DEBUG
     printf("SSL connection using %s\n", SSL_get_cipher(ssl));
+#endif
 
     /* Get server's certificate (note: beware of dynamic allocation) - opt */
 
     server_cert = SSL_get_peer_certificate(ssl);
     CHK_NULL(server_cert);
+
+#ifdef DEBUG
     printf("Server certificate:\n");
+#endif
 
     str = X509_NAME_oneline(X509_get_subject_name(server_cert), 0, 0);
     CHK_NULL(str);
+
+#ifdef DEBUG
     printf("\t subject: %s\n", str);
+#endif
+
     if (strcmp(str, "/C=US/ST=New-York/O=GuangchengWei/CN=VPNSERVER") != 0) {
         printf("Server certification subject incorrect\n");
         return -1;
@@ -158,7 +172,11 @@ int init_client(char *addr, int port, char * username, char * password,
 
     str = X509_NAME_oneline(X509_get_issuer_name(server_cert), 0, 0);
     CHK_NULL(str);
+
+#ifdef DEBUG
     printf("\t issuer: %s\n", str);
+#endif
+
     if (strcmp(str, "/C=US/ST=New-York/L=Syracuse/O=GuangchengWei/CN=VPNCA") != 0) {
         printf("Server certification issuer incorrect\n");
         return -1;
@@ -197,7 +215,7 @@ int close_client(int sd, SSL_CTX *ctx, SSL *ssl) {
 //    int sd;
 //    SSL_CTX *ctx;
 //    SSL *ssl;
-//    init_client("127.0.0.1", 1111, "user1", "password", &sd, &ctx, &ssl);
+//    init_client("127.0.0.1", 1111, "user1", "passwaord", &sd, &ctx, &ssl);
 //    close_client(sd, ctx, ssl);
 //}
 
