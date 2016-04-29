@@ -35,7 +35,10 @@ int verify_password(char * username, char * password) {
 
 	char stored_password[64];
 	fscanf(password_file, "%s", stored_password);
+
+#ifdef DEBUG
 	printf("pw: %s\n", stored_password);
+#endif
 
 	char * salt_path = malloc(strlen(salt_folder) + strlen(username) + 1);
 	strcpy(salt_path, salt_folder);
@@ -44,7 +47,10 @@ int verify_password(char * username, char * password) {
 	FILE * salt_file = fopen(salt_path, "rb");
 	char stored_salt[64];
 	fscanf(salt_file, "%s", stored_salt);
+
+#ifdef DEBUG
 	printf("sa: %s\n", stored_salt);
+#endif
 
 	int message_len = strlen(stored_salt) + strlen(password);
 	char * message = malloc(message_len + 1);
@@ -52,7 +58,10 @@ int verify_password(char * username, char * password) {
 	strcat(message, password);
 
 	char * verify_digist = do_digest(ctx, message, message_len);
+
+#ifdef DEBUG
 	printf("rs: %s\n", verify_digist);
+#endif
 
 	int result = memcmp(verify_digist, stored_password, sizeof(stored_password));
 	EVP_MD_CTX_destroy(ctx);
@@ -60,7 +69,7 @@ int verify_password(char * username, char * password) {
 	return result;
 }
 
-int main(){
-	int done = verify_password("user1", "password");
-	printf("cmp: %d\n",done);
-}
+//int main(){
+//	int done = verify_password("user1", "password");
+//	printf("cmp: %d\n",done);
+//}
