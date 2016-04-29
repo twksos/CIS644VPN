@@ -171,7 +171,7 @@ int init_client(char *addr, int port, char * username, char * password,
     printf("\t subject: %s\n", str);
 #endif
 
-    if (same_domain(str, "VPNSERVER")) {
+    if (!same_domain(str, "VPNSERVER")) {
         printf("Server certification subject incorrect\n");
         return -1;
     }
@@ -183,7 +183,7 @@ int init_client(char *addr, int port, char * username, char * password,
 #ifdef DEBUG
     printf("\t issuer: %s\n", str);
 #endif
-    if (same_domain(str, "VPNCA")) {
+    if (!same_domain(str, "VPNCA")) {
         printf("Server certification issuer incorrect\n");
         return -1;
     }

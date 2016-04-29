@@ -38,6 +38,10 @@ int same_domain(char * str, char * domain) {
 	int str_len = strlen(str);
 	int start = str_len - domain_len;
 	int domain_correct = memcmp(str + start, domain, domain_len);
+#ifdef DEBUG
+	printf("str: %s\n", str + start);
+	printf("chr: %c\n", str[start-1]);
+#endif
 	bool sym_correct = str[start-1] == '=' || str[start-1] == '.' ;
 
 	if (domain_correct == 0 && sym_correct == 1) return 1;

@@ -79,7 +79,7 @@ int main(int argc, char *argv[])
 	char iv[16];
 
 	fd_set fdset;
-	
+    int tcp_port;
 	
 
 	int MODE = 0, TUNMODE = IFF_TUN;
@@ -90,7 +90,8 @@ int main(int argc, char *argv[])
 			usage();
 		case 's':
 			MODE = 1;
-			PORT = atoi(optarg);
+            tcp_port =atoi(optarg);
+            PORT = tcp_port + 1;
 			break;
 		case 'c':
 			MODE = 2;
@@ -98,7 +99,8 @@ int main(int argc, char *argv[])
 			if (!p) ERROR("invalid argument : [%s]\n",optarg);
 			*p = 0;
 			ip = optarg;
-			port = atoi(p+1);
+			tcp_port = atoi(p+1);
+            port = tcp_port +1;
 			PORT = 0;
 			break;
 		case 'e':
@@ -113,9 +115,6 @@ int main(int argc, char *argv[])
     SSL_CTX* ssl_ctx;
     SSL*     ssl;
     int ssl_sd;
-
-    int tcp_port = port + 1;
-    if(MODE == 1) { tcp_port = PORT + 1; }
 
     size_t state_size = sizeof(struct communicate);
     struct communicate *state = malloc(state_size);
