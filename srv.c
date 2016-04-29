@@ -248,6 +248,7 @@ int init_server(int port, int *out_sd, SSL_CTX ** out_ctx, SSL **out_ssl) {
             printf("Client username and password does not match.\n");
             return -1;
         }
+        server_send("success", sizeof("success"), ssl);
 
         return 0;
     } else {
