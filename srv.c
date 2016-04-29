@@ -76,18 +76,15 @@ char * listen_client(SSL *ssl) {
     return message;
 }
 
-int server_send(char *cmd, int cmd_len, SSL *ssl) {
+int server_send(char *msg, int msg_len, SSL *ssl) {
     int err;
 
 #ifdef DEBUG
-    printf("server send cmd:\n");
-    hex(cmd, cmd_len);
+    printf("server send msg:\n");
+    hex(msg, msg_len);
 #endif
-
-    /* DATA EXCHANGE - Receive message and send reply. */
-    err = SSL_write(ssl, cmd, cmd_len);
+    err = SSL_write(ssl, msg, msg_len);
     CHK_SSL(err);
-
     return 0;
 }
 

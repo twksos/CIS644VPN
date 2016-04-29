@@ -47,25 +47,28 @@ int reply_challenge(SSL* ssl){
     CHK_SSL(err);
 }
 
-int client_send(char * message, size_t message_len, SSL* ssl){
+int client_send(char * msg, size_t msg_len, SSL* ssl) {
     int err;
-    err = SSL_write(ssl, message, message_len);
+    err = SSL_write(ssl, msg, msg_len);
     CHK_SSL(err);
+    return 0;
 }
 
-int listen_server(char *cmd, SSL *ssl) {
+
+char * listen_server(SSL *ssl) {
     int err;
     char buf[4096];
     err = SSL_read(ssl, buf, sizeof(buf) - 1);
     CHK_SSL(err);
-    memcpy(cmd, buf, err);
+    char * message = malloc((size_t)err);
+    memcpy(message, buf, err);
+    message[err] = '\0';
 
 #ifdef DEBUG
-    printf("client get cmd:\n");
-    hex(cmd, err);
+    printf("server get message:\n");
+    hex(message, err);
 #endif
-
-    return 0;
+    return message;
 }
 
 SSL_CTX *get_client_CTX() {

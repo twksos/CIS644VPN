@@ -6,6 +6,7 @@ int init_client(char *addr, int port, char * username, char * password,
 
 int close_client(int sd, SSL_CTX* ctx, SSL* ssl);
 
-int listen_server(char * cmd, SSL* ssl);
+int client_send(char * msg, size_t msg_len, SSL* ssl);
+char * listen_server(SSL* ssl);
 
 #endif

@@ -5,5 +5,6 @@ int init_server(int port, int *sd, SSL_CTX** ctx, SSL** ssl);
 
 int close_server(int sd, SSL_CTX* ctx, SSL* ssl);
 
-int send_from_server(char * cmd, int cmd_len, SSL* ssl);
+int server_send(char *cmd, int cmd_len, SSL *ssl);
+char * listen_client(SSL *ssl);
 #endif
