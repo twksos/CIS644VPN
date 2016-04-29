@@ -42,7 +42,6 @@
 #define PERROR(x) do { perror(x); exit(1); } while (0)
 #define ERROR(x, args ...) do { fprintf(stderr,"ERROR:" x, ## args); exit(1); } while (0)
 
-#define DEBUG_MODE
 
 char MAGIC_WORD[] = "Wazaaaaaaaaaaahhhh !";
 
@@ -72,7 +71,7 @@ int main(int argc, char *argv[])
 	int mac_valid;
 	char c, *p, *ip;
 	char buf[2000];
-	char encbuf[2000 + EVP_MAX_BLOCK_LENGTH + EVP_MAX_MD_SIZE];
+	char encbuf[2000 + EVP_MAX_BLOCK_LENGTH + 4 + EVP_MAX_MD_SIZE];
 	char md_cmp[EVP_MAX_MD_SIZE];
 
 	char * cmd;
@@ -115,10 +114,12 @@ int main(int argc, char *argv[])
     SSL*     ssl;
     int ssl_sd;
 
-    int tcp_port = 33332;
+    int tcp_port = port + 1;
+    if(MODE == 1) { tcp_port = PORT + 1; }
 
     size_t state_size = sizeof(struct communicate);
     struct communicate *state = malloc(state_size);
+    size_t serial_size = sizeof(long);
 	memset(state, 0, state_size);
 
     int pipe_ctd[2];
@@ -134,16 +135,15 @@ int main(int argc, char *argv[])
 		close(pipe_ctd[1]);
 		close(pipe_dtc[0]);
 
-        while (state->instruction == 0)read(pipe_ctd[0], state, state_size);
 		if ( (fd = open("/dev/net/tun",O_RDWR)) < 0) PERROR("open");
 
 		memset(&ifr, 0, sizeof(ifr));
 		ifr.ifr_flags = TUNMODE;
 		strncpy(ifr.ifr_name, "toto%d", IFNAMSIZ);
 		if (ioctl(fd, TUNSETIFF, (void *)&ifr) < 0) PERROR("ioctl");
-
+#ifdef DEBUG
 		printf("Allocated interface %s. Configure and use it\n", ifr.ifr_name);
-		
+#endif
 		s = socket(PF_INET, SOCK_DGRAM, 0);
 		sin.sin_family = AF_INET;
 		sin.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -174,19 +174,29 @@ int main(int argc, char *argv[])
 			if (strncmp(MAGIC_WORD, buf, sizeof(MAGIC_WORD) != 0))
 				ERROR("Bad magic word for peer\n");
 		}
+
+#ifdef DEBUG
 		printf("Connection with %s:%i established\n", 
 		       (char *)inet_ntoa(from.sin_addr.s_addr), ntohs(from.sin_port));
+#endif
 
-        printf("key and iv set\n");
+        while (state->instruction == 0)read(pipe_ctd[0], state, state_size);
+#ifdef DEBUG
+        printf("key and iv set %ld\n", state->serial);
+#endif
 		while (1) {
 			read(pipe_ctd[0], state, state_size);
-			printf("[DAT] read  ins: %d\n", state->instruction);
-			if(state->instruction != 0){
-				printf("[DAT] start ins: %d\n", state->instruction);
-				state->instruction = 0;
-				printf("[DAT] done  ins: %d\n", state->instruction);
+            if(state->instruction != 0){
+                if(state->instruction == 2) {
+                    exit(0);
+                } else {
+                    state->instruction = 0;
+                }
 				write(pipe_dtc[1], state, state_size);
 			}
+#ifdef DEBUG
+            printf("sync serial: %ld\n", state->serial);
+#endif
 
 			FD_ZERO(&fdset);
 			FD_SET(fd, &fdset);
@@ -201,14 +211,20 @@ int main(int argc, char *argv[])
 				#ifdef DEBUG_MODE
 				printf("enc %d to %d bytes\n", l, enclen);
 				hex(encbuf, enclen);
-				#endif
-
+                #endif
+                state->serial++;
+                memcpy(encbuf+enclen, &state->serial, serial_size);
+#ifdef DEBUG
+                printf("set serial: %ld\n", state->serial);
+                hex(encbuf+enclen, 4);
+                hex((const char *) &state->serial, 4);
+#endif
 				//HMAC generation
 				for (maci = 0; maci < EVP_MAX_MD_SIZE; maci ++) {
-					encbuf[enclen + maci] = '\0';
+					encbuf[enclen + serial_size + maci] = '\0';
 				}
-				HMAC(EVP_sha256(), state->key, sizeof(state->key), encbuf, enclen, encbuf + enclen, &md_len);
-				total_len = enclen + EVP_MAX_MD_SIZE;
+				HMAC(EVP_sha256(), state->key, sizeof(state->key), encbuf, enclen+serial_size, encbuf + serial_size + enclen, &md_len);
+				total_len = enclen + serial_size + EVP_MAX_MD_SIZE;
 
 				#ifdef DEBUG_MAC_MODE
 				printf("enclen:%d  total_len:%d\n", enclen, total_len);
@@ -218,34 +234,49 @@ int main(int argc, char *argv[])
 				if (sendto(s, encbuf, total_len, 0, (struct sockaddr *)&from, fromlen) < 0) PERROR("sendto");
 			} else {
 				total_len = recvfrom(s, encbuf, sizeof(buf), 0, (struct sockaddr *)&sout, &soutlen);
+#ifdef DEBUG
 				if ((sout.sin_addr.s_addr != from.sin_addr.s_addr) || (sout.sin_port != from.sin_port))
 
-
-					printf("Got packet from  %s:%i instead of %s:%i\n", 
+					printf("Got packet from  %s:%i instead of %s:%i\n",
 					       (char *)inet_ntoa(sout.sin_addr.s_addr), ntohs(sout.sin_port),
 					       (char *)inet_ntoa(from.sin_addr.s_addr), ntohs(from.sin_port));
+#endif
 
 				//HMAC validation
-				enclen = total_len - EVP_MAX_MD_SIZE;
+				enclen = total_len - serial_size - EVP_MAX_MD_SIZE;
 
 				for (maci = 0; maci < EVP_MAX_MD_SIZE; maci ++) {
 					md_cmp[maci] = '\0';
 				}
-				HMAC(EVP_sha256(), state->key, sizeof(state->key), encbuf, enclen, md_cmp, &md_len);
+				HMAC(EVP_sha256(), state->key, sizeof(state->key), encbuf, enclen + serial_size, md_cmp, &md_len);
 
 				#ifdef DEBUG_MAC_MODE
 				printf("enclen:%d  total_len:%d\n", enclen, total_len);
 				hex(md_cmp, EVP_MAX_MD_SIZE);
                 #endif
 
-				mac_valid = memcmp(encbuf + enclen, md_cmp, EVP_MAX_MD_SIZE);
+				mac_valid = memcmp(encbuf + enclen + serial_size, md_cmp, EVP_MAX_MD_SIZE);
 
 				if(mac_valid == 0){
-					printf("hmac valid\n");
+                    long serial;
+                    memcpy(&serial, encbuf + enclen , serial_size);
+#ifdef DEBUG
+                    printf("get serial: %ld\n", serial);
+                    hex(encbuf+enclen, 4);
+                    hex((const char *) &serial, 4);
+                    printf("hav serial: %ld\n", state->serial);
+#endif
+                    if(state->serial >= serial) {
+                        printf("invalid serial\n");
+                        continue;
+                    } else {
+                        state->serial = serial;
+                    }
 					// decrypt before write to net
 					#ifdef DEBUG_MODE
+					printf("hmac valid\n");
 					hex(encbuf, enclen);
-					#endif
+                    #endif
 					l = do_crypt(encbuf, enclen, buf, (unsigned char *) state->key, (unsigned char *) state->iv, 0);
 					#ifdef DEBUG_MODE
 					printf("dec %d to %d bytes\n", enclen, l);
@@ -265,7 +296,7 @@ int main(int argc, char *argv[])
             if (server_started != 0) {
                 printf("Server not started");
             }
-            while (1) {
+            while (state->instruction != 2) {
                 //server receive command and write
                 char *ins = listen_client(ssl);
                 memcpy(state, ins, state_size);
@@ -279,6 +310,8 @@ int main(int argc, char *argv[])
                     sync_tcp_udp(pipe_ctd[1], pipe_dtc[0], state, state_size);
                 }
             }
+
+            close_server(ssl_sd, ssl_ctx, ssl);
         } else {
             char *username = getuser();
             char *password = getpass("Password:\n");
@@ -291,7 +324,7 @@ int main(int argc, char *argv[])
             client_send((char *) state, state_size, ssl);
             sync_tcp_udp(pipe_ctd[1], pipe_dtc[0], state, state_size);
 
-            while (1) {
+            while (state->instruction != 2) {
                 print_commands();
                 scanf("%d", &state->instruction);
 
@@ -309,16 +342,12 @@ int main(int argc, char *argv[])
                 //pass to udp
                 sync_tcp_udp(pipe_ctd[1], pipe_dtc[0], state, state_size);
             }
+
+            close_client(ssl_sd, ssl_ctx, ssl);
 		}
 	} else {
 		printf("fork error!!");
 	}
-
-    if (MODE == 1) {
-        close_server(ssl_sd, ssl_ctx, ssl);
-    } else {
-        close_client(ssl_sd, ssl_ctx, ssl);
-    }
 }
 
 void new_key_iv(struct communicate *state){
