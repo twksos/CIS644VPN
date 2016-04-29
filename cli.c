@@ -49,6 +49,10 @@ int reply_challenge(SSL* ssl){
 
 int client_send(char * msg, size_t msg_len, SSL* ssl) {
     int err;
+#ifdef DEBUG
+    printf("client send msg:\n");
+    hex(msg, msg_len);
+#endif
     err = SSL_write(ssl, msg, msg_len);
     CHK_SSL(err);
     return 0;
@@ -191,8 +195,21 @@ int init_client(char *addr, int port, char * username, char * password,
        deallocating the certificate. */
 
     reply_challenge(ssl);
+
+#ifdef DEBUG
+    printf("challenge replied\n");
+
+    printf("un %s", username);
+    printf("pw %s", password);
+#endif
+
     client_send(username, strlen(username), ssl);
     client_send(password, strlen(password), ssl);
+    char * success = listen_server(ssl);
+    if(strcmp(success, "success") != 0) {
+        printf("Sign in fail");
+        return -1;
+    }
 
     X509_free(server_cert);
 
