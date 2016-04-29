@@ -38,12 +38,29 @@ int reply_challenge(SSL* ssl){
     err = SSL_read(ssl, buf, sizeof(buf) - 1);
     CHK_SSL(err);
 
-    printf("ssl add: %d", (int)ssl);
     printf("Got challenge %d chars:\n", err);
     hex(buf, err);
 
     err = SSL_write(ssl, buf, err);
     CHK_SSL(err);
+}
+
+int client_send(char * message, size_t message_len, SSL* ssl){
+    int err;
+    err = SSL_write(ssl, message, message_len);
+    CHK_SSL(err);
+}
+
+int listen_server(char *cmd, SSL *ssl) {
+    int err;
+    char buf[4096];
+    err = SSL_read(ssl, buf, sizeof(buf) - 1);
+    CHK_SSL(err);
+    memcpy(cmd, buf, err);
+
+    printf("client get cmd:\n");
+    hex(cmd, err);
+    return 0;
 }
 
 SSL_CTX *get_client_CTX() {
@@ -60,7 +77,7 @@ SSL_CTX *get_client_CTX() {
     return ctx;
 }
 
-int init_client(char *addr, int port,
+int init_client(char *addr, int port, char * username, char * password,
                 int* out_sd, SSL_CTX ** out_ctx, SSL **out_ssl) {
     int err;
     struct sockaddr_in sa;
@@ -133,10 +150,8 @@ int init_client(char *addr, int port,
     str = X509_NAME_oneline(X509_get_subject_name(server_cert), 0, 0);
     CHK_NULL(str);
     printf("\t subject: %s\n", str);
-    if (strcmp(str, "/C=US/ST=New-York/O=GuangchengWei/CN=VPNSERVER") == 0) {
-        printf("subject correct\n");
-    } else {
-        printf("subject incorrect\n");
+    if (strcmp(str, "/C=US/ST=New-York/O=GuangchengWei/CN=VPNSERVER") != 0) {
+        printf("Server certification subject incorrect\n");
         return -1;
     }
     OPENSSL_free(str);
@@ -144,10 +159,8 @@ int init_client(char *addr, int port,
     str = X509_NAME_oneline(X509_get_issuer_name(server_cert), 0, 0);
     CHK_NULL(str);
     printf("\t issuer: %s\n", str);
-    if (strcmp(str, "/C=US/ST=New-York/L=Syracuse/O=GuangchengWei/CN=VPNCA") == 0) {
-        printf("issuer correct\n");
-    } else {
-        printf("subject incorrect\n");
+    if (strcmp(str, "/C=US/ST=New-York/L=Syracuse/O=GuangchengWei/CN=VPNCA") != 0) {
+        printf("Server certification issuer incorrect\n");
         return -1;
     }
 
@@ -157,6 +170,8 @@ int init_client(char *addr, int port,
        deallocating the certificate. */
 
     reply_challenge(ssl);
+    client_send(username, strlen(username), ssl);
+    client_send(password, strlen(password), ssl);
 
     X509_free(server_cert);
 
@@ -178,21 +193,12 @@ int close_client(int sd, SSL_CTX *ctx, SSL *ssl) {
     return 0;
 }
 
-int listen_server(char *cmd, SSL *ssl) {
-    int err;
-    char buf[4096];
-    err = SSL_read(ssl, buf, sizeof(buf) - 1);
-    CHK_SSL(err);
-    memcpy(cmd, buf, err);
+//int main(){
+//    int sd;
+//    SSL_CTX *ctx;
+//    SSL *ssl;
+//    init_client("127.0.0.1", 1111, "user1", "password", &sd, &ctx, &ssl);
+//    close_client(sd, ctx, ssl);
+//}
 
-    printf("client get cmd:\n");
-    hex(cmd, err);
-    return 0;
-}
-
-#ifdef DEBUG_PKI
-int main(){
-  key_exchange_client("127.0.0.1", 1111);
-}
-#endif
 /* EOF - cli.cpp */

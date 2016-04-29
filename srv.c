@@ -18,6 +18,7 @@
 #include <openssl/err.h>
 
 #include "util.h"
+#include "password.h"
 
 /* define HOME to be dir for key and cert files... */
 #define HOME "./cert_server/"
@@ -56,6 +57,35 @@ int challenge(SSL* ssl){
         printf("TCP connection fail\n");
         return -1;
     }
+    return 0;
+}
+
+char * listen_client(SSL *ssl) {
+    int err;
+    char buf[4096];
+    err = SSL_read(ssl, buf, sizeof(buf) - 1);
+    CHK_SSL(err);
+    char * message = malloc((size_t)err);
+    memcpy(message, buf, err);
+    message[err] = '\0';
+
+#ifndef PROD
+    printf("server get message:\n");
+    hex(message, err);
+#endif
+    return message;
+}
+
+int server_send(char *cmd, int cmd_len, SSL *ssl) {
+    int err;
+
+    printf("server send cmd:\n");
+    hex(cmd, cmd_len);
+
+    /* DATA EXCHANGE - Receive message and send reply. */
+    err = SSL_write(ssl, cmd, cmd_len);
+    CHK_SSL(err);
+
     return 0;
 }
 
@@ -156,14 +186,11 @@ int init_server(int port, int *out_sd, SSL_CTX ** out_ctx, SSL **out_ssl) {
     client_cert = SSL_get_peer_certificate(ssl);
     if (client_cert != NULL) {
         printf("Client certificate:\n");
-
         str = X509_NAME_oneline(X509_get_subject_name(client_cert), 0, 0);
         CHK_NULL(str);
         printf("\t subject: %s\n", str);
-        if (strcmp(str, "/C=US/ST=New-York/O=GuangchengWei/CN=VPNCLIENT") == 0) {
-            printf("subject correct\n");
-        } else {
-            printf("subject incorrect\n");
+        if (strcmp(str, "/C=US/ST=New-York/O=GuangchengWei/CN=VPNCLIENT") != 0) {
+            printf("Client certificate is incorrect.\n");
             return -1;
         }
         OPENSSL_free(str);
@@ -171,10 +198,8 @@ int init_server(int port, int *out_sd, SSL_CTX ** out_ctx, SSL **out_ssl) {
         str = X509_NAME_oneline(X509_get_issuer_name(client_cert), 0, 0);
         CHK_NULL(str);
         printf("\t issuer: %s\n", str);
-        if (strcmp(str, "/C=US/ST=New-York/L=Syracuse/O=GuangchengWei/CN=VPNCA") == 0) {
-            printf("issuer correct\n");
-        } else {
-            printf("issuer incorrect\n");
+        if (strcmp(str, "/C=US/ST=New-York/L=Syracuse/O=GuangchengWei/CN=VPNCA") != 0) {
+            printf("Client certificate is incorrect.\n");
             return -1;
         }
         OPENSSL_free(str);
@@ -182,18 +207,34 @@ int init_server(int port, int *out_sd, SSL_CTX ** out_ctx, SSL **out_ssl) {
         /* We could do all sorts of certificate verification stuff here before
            deallocating the certificate. */
 
-        challenge(ssl);
+        int verfied = challenge(ssl);
+        if(verfied !=0) {
+            printf("Client certificate is incorrect.\n");
+            return -1;
+        }
+
+        char * username;
+        char * password;
+        username = listen_client(ssl);
+        password = listen_client(ssl);
+
+        printf("username: %s\npassword %s\n", username, password);
+        verfied = verify_password(username, password);
+        if(verfied != 0) {
+            printf("Client username and password does not match.\n");
+            return -1;
+        }
 
         X509_free(client_cert);
 
         *out_sd = sd;
         *out_ctx = ctx;
         *out_ssl = ssl;
-
-    } else
+        return 0;
+    } else {
         printf("Client does not have certificate.\n");
-
-    return 0;
+        return -1;
+    }
 }
 
 int close_server(int sd, SSL_CTX *ctx, SSL *ssl) {
@@ -203,22 +244,12 @@ int close_server(int sd, SSL_CTX *ctx, SSL *ssl) {
     return 0;
 }
 
-int send_from_server(char *cmd, int cmd_len, SSL *ssl) {
-    int err;
+//int main(){
+//    int sd;
+//    SSL_CTX *ctx;
+//    SSL *ssl;
+//    init_server(1111, &sd, &ctx, &ssl);
+//    close_server(sd, ctx, ssl);
+//}
 
-    printf("server send cmd:\n");
-    hex(cmd, cmd_len);
-
-    /* DATA EXCHANGE - Receive message and send reply. */
-    err = SSL_write(ssl, cmd, cmd_len);
-    CHK_SSL(err);
-
-    return 0;
-}
-
-#ifdef DEBUG_PKI
-int main(){
-  key_exchange_server("12345678", 1111);
-}
-#endif
 /* EOF - serv.cpp */
